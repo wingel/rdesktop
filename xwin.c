@@ -43,6 +43,7 @@ extern int g_pos;
 extern RD_BOOL g_sendmotion;
 extern RD_BOOL g_fullscreen;
 extern RD_BOOL g_grab_keyboard;
+extern RD_BOOL g_ungrab_on_ctrlalt;
 extern RD_BOOL g_hide_decorations;
 extern RD_BOOL g_pending_resize;
 extern char g_title[];
@@ -125,6 +126,7 @@ static Atom g_protocol_atom, g_kill_atom;
 extern Atom g_net_wm_state_atom;
 extern Atom g_net_wm_desktop_atom;
 static RD_BOOL g_focused;
+static RD_BOOL g_grabbed;
 static RD_BOOL g_mouse_in_wnd;
 /* Indicates that:
    1) visual has 15, 16 or 24 depth and the same color channel masks
@@ -1555,8 +1557,7 @@ xwin_refresh_pointer_map(void)
 	}
 }
 
-RD_BOOL
-get_key_state(unsigned int state, uint32 keysym)
+int get_keysym_mask(uint32 keysym)
 {
 	int modifierpos, key, keysymMask = 0;
 	int offset;
@@ -1577,6 +1578,13 @@ get_key_state(unsigned int state, uint32 keysym)
 		}
 	}
 
+	return keysymMask;
+}
+
+RD_BOOL
+get_key_state(unsigned int state, uint32 keysym)
+{
+	int keysymMask = get_keysym_mask(keysym);
 	return (state & keysymMask) ? True : False;
 }
 
@@ -2204,7 +2212,7 @@ xwin_toggle_fullscreen(void)
 	g_fullscreen = !g_fullscreen;
 	ui_create_window();
 
-	XDefineCursor(g_display, g_wnd, g_current_cursor);
+	ui_refresh_cursor();
 
 	if (!g_ownbackstore)
 	{
@@ -2308,6 +2316,42 @@ handle_button_event(XEvent xevent, RD_BOOL down)
 	}
 }
 
+void
+xwin_grab_help(void)
+{
+	char title[128];
+
+	if (g_ungrab_on_ctrlalt && g_grabbed) {
+		sprintf(title, "%s (to release cursor, press Ctrl-Alt)",
+			g_title);
+	} else {
+		sprintf(title, "%s", g_title);
+	}
+	XStoreName(g_display, g_wnd, title);
+
+	ui_refresh_cursor();
+}
+
+void
+xwin_grab_keyboard(void)
+{
+	if (!g_grabbed) {
+		g_grabbed = True;
+		XGrabKeyboard(g_display, g_wnd, True,
+			      GrabModeAsync, GrabModeAsync, CurrentTime);
+		xwin_grab_help();
+	}
+}
+
+void
+xwin_ungrab_keyboard(void)
+{
+	if (g_grabbed) {
+		g_grabbed = False;
+		XUngrabKeyboard(g_display, CurrentTime);
+		xwin_grab_help();
+	}
+}
 
 /* Process events in Xlib queue
    Returns 0 after user quit, 1 otherwise */
@@ -2418,6 +2462,7 @@ xwin_process_events(void)
 				break;
 
 			case ButtonPress:
+				xwin_grab_keyboard();
 				handle_button_event(xevent, True);
 				break;
 
@@ -2457,9 +2502,10 @@ xwin_process_events(void)
 					break;
 				g_focused = True;
 				reset_modifier_keys();
-				if (g_grab_keyboard && g_mouse_in_wnd)
-					XGrabKeyboard(g_display, g_wnd, True,
-						      GrabModeAsync, GrabModeAsync, CurrentTime);
+				if (g_ungrab_on_ctrlalt)
+					xwin_grab_help();
+				else if (g_grab_keyboard && g_mouse_in_wnd)
+					xwin_grab_keyboard();
 
 				sw = sw_get_window_by_wnd(xevent.xfocus.window);
 				if (!sw)
@@ -2492,7 +2538,7 @@ xwin_process_events(void)
 					break;
 				g_focused = False;
 				if (xevent.xfocus.mode == NotifyWhileGrabbed)
-					XUngrabKeyboard(g_display, CurrentTime);
+					xwin_ungrab_keyboard();
 				break;
 
 			case EnterNotify:
@@ -2505,15 +2551,16 @@ xwin_process_events(void)
 						       CurrentTime);
 					break;
 				}
-				if (g_focused)
-					XGrabKeyboard(g_display, g_wnd, True,
-						      GrabModeAsync, GrabModeAsync, CurrentTime);
+				if (g_ungrab_on_ctrlalt)
+					xwin_grab_help();
+				else if (g_focused)
+					xwin_grab_keyboard();
 				break;
 
 			case LeaveNotify:
 				/* we only register for this event when grab_keyboard */
 				g_mouse_in_wnd = False;
-				XUngrabKeyboard(g_display, CurrentTime);
+				xwin_ungrab_keyboard();
 				break;
 
 			case Expose:
@@ -2977,11 +3024,23 @@ ui_create_cursor(unsigned int x, unsigned int y, int width, int height,
 }
 
 void
+ui_refresh_cursor(void)
+{
+	if (!g_grab_keyboard || g_grabbed) {
+		XDefineCursor(g_display, g_wnd, g_current_cursor);
+		ON_ALL_SEAMLESS_WINDOWS(XDefineCursor, (g_display, sw->wnd, g_current_cursor));
+	} else {
+		// \todo maybe use a custom cursor
+		XUndefineCursor(g_display, g_wnd);
+		ON_ALL_SEAMLESS_WINDOWS(XUndefineCursor, (g_display, sw->wnd));
+	}
+}
+
+void
 ui_set_cursor(RD_HCURSOR cursor)
 {
 	g_current_cursor = (Cursor) cursor;
-	XDefineCursor(g_display, g_wnd, g_current_cursor);
-	ON_ALL_SEAMLESS_WINDOWS(XDefineCursor, (g_display, sw->wnd, g_current_cursor));
+	ui_refresh_cursor();
 }
 
 void

@@ -50,6 +50,7 @@ extern int g_win_button_size;
 extern RD_BOOL g_enable_compose;
 extern RDP_VERSION g_rdp_version;
 extern RD_BOOL g_numlock_sync;
+extern RD_BOOL g_ungrab_on_ctrlalt;
 
 static RD_BOOL keymap_loaded;
 static key_translation_entry *keymap[KEYMAP_SIZE];
@@ -57,6 +58,7 @@ static KeySym keypress_keysyms[256];
 static int min_keycode;
 static uint16 remote_modifier_state = 0;
 static uint16 saved_remote_modifier_state = 0;
+static RD_BOOL ctrl_alt_pressed = 0;
 
 static void update_modifier_state(uint8 scancode, RD_BOOL pressed);
 
@@ -634,6 +636,47 @@ reset_keypress_keysym(unsigned int keycode, KeySym keysym)
 RD_BOOL
 handle_special_keys(uint32 keysym, unsigned int state, uint32 ev_time, RD_BOOL pressed)
 {
+	DEBUG_KBD(("handle_special_keys (keysym 0x%x, %s state 0x%x, pressed %d)\n",
+		   keysym, get_ksname(keysym), state, pressed));
+
+	DEBUG_KBD(("Control_L %d, Control_R %d, Alt_L %d, Alt_R %d\n",
+		   get_key_state(state, XK_Control_L),
+		   get_key_state(state, XK_Control_R),
+		   get_key_state(state, XK_Alt_L),
+		   get_key_state(state, XK_Alt_R)));
+
+	if (keysym == XK_Alt_L || keysym == XK_Alt_R
+	    || keysym == XK_Control_L || keysym == XK_Control_R) {
+		int new_state = state;
+
+		if (pressed)
+			new_state |= get_keysym_mask(keysym);
+		else
+			new_state &= ~get_keysym_mask(keysym);
+
+		new_state &= ~get_keysym_mask(XK_Num_Lock);
+
+		if (pressed) {
+			if ((new_state & (get_keysym_mask(XK_Alt_L)
+					  | get_keysym_mask(XK_Alt_R))) &&
+			    (new_state & (get_keysym_mask(XK_Control_L)
+					  | get_keysym_mask(XK_Control_R)))) {
+				ctrl_alt_pressed = True;
+				DEBUG_KBD(("Ctrl-Alt Pressed\n"));
+			}
+		} else {
+			if (ctrl_alt_pressed && !new_state) {
+				DEBUG_KBD(("Ctrl-Alt Released\n"));
+				if (g_ungrab_on_ctrlalt)
+					xwin_ungrab_keyboard();
+			}
+		}
+	} else if (pressed) {
+		ctrl_alt_pressed = False;
+		if (!get_keysym_mask(keysym))
+			xwin_grab_keyboard();
+	}
+
 	switch (keysym)
 	{
 		case XK_Return:
