@@ -35,7 +35,8 @@ extern Display *g_display;
 static Atom g_net_wm_state_maximized_vert_atom, g_net_wm_state_maximized_horz_atom,
 	g_net_wm_state_hidden_atom, g_net_wm_name_atom, g_utf8_string_atom,
 	g_net_wm_state_skip_taskbar_atom, g_net_wm_state_skip_pager_atom,
-	g_net_wm_state_modal_atom, g_net_wm_icon_atom, g_net_wm_state_above_atom;
+	g_net_wm_state_modal_atom, g_net_wm_icon_atom, g_net_wm_state_above_atom,
+	g_net_wm_state_fullscreen;
 
 Atom g_net_wm_state_atom, g_net_wm_desktop_atom;
 
@@ -191,6 +192,7 @@ ewmh_init()
 	g_net_wm_name_atom = XInternAtom(g_display, "_NET_WM_NAME", False);
 	g_net_wm_icon_atom = XInternAtom(g_display, "_NET_WM_ICON", False);
 	g_utf8_string_atom = XInternAtom(g_display, "UTF8_STRING", False);
+	g_net_wm_state_fullscreen = XInternAtom(g_display, "_NET_WM_STATE_FULLSCREEN", False);
 }
 
 
@@ -353,7 +355,6 @@ ewmh_change_state(Window wnd, int state)
 	return 0;
 }
 
-
 int
 ewmh_get_window_desktop(Window wnd)
 {
@@ -423,6 +424,14 @@ int
 ewmh_set_window_modal(Window wnd)
 {
 	if (ewmh_modify_state(wnd, 1, g_net_wm_state_modal_atom, 0) < 0)
+		return -1;
+	return 0;
+}
+
+int
+ewmh_set_window_fullscreen(Window wnd)
+{
+	if (ewmh_modify_state(wnd, 1, g_net_wm_state_fullscreen, 0) < 0)
 		return -1;
 	return 0;
 }

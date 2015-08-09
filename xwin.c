@@ -1991,7 +1991,7 @@ get_window_attribs(XSetWindowAttributes * attribs)
 	attribs->background_pixel = BlackPixelOfScreen(g_screen);
 	attribs->border_pixel = WhitePixelOfScreen(g_screen);
 	attribs->backing_store = g_ownbackstore ? NotUseful : Always;
-	attribs->override_redirect = g_fullscreen;
+	attribs->override_redirect = 0; // g_fullscreen;
 	attribs->colormap = g_xcolmap;
 }
 
@@ -2072,6 +2072,9 @@ ui_create_window(void)
 		XFree(classhints);
 	}
 
+	if (g_fullscreen)
+		ewmh_set_window_fullscreen(g_wnd);
+
 	sizehints = XAllocSizeHints();
 	if (sizehints)
 	{
@@ -2122,6 +2125,9 @@ ui_create_window(void)
 	g_protocol_atom = XInternAtom(g_display, "WM_PROTOCOLS", True);
 	g_kill_atom = XInternAtom(g_display, "WM_DELETE_WINDOW", True);
 	XSetWMProtocols(g_display, g_wnd, &g_kill_atom, 1);
+
+	if (g_fullscreen)
+		XMoveWindow(g_display, g_wnd, 0, 0);
 
 	/* create invisible 1x1 cursor to be used as null cursor */
 	if (g_null_cursor == NULL)
