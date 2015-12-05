@@ -436,6 +436,14 @@ ewmh_set_window_fullscreen(Window wnd)
 	return 0;
 }
 
+int
+ewmh_clear_window_fullscreen(Window wnd)
+{
+	if (ewmh_modify_state(wnd, 1, g_net_wm_state_fullscreen, 0) < 0)
+		return -1;
+	return 0;
+}
+
 void
 ewmh_set_icon(Window wnd, int width, int height, const char *rgba_data)
 {
@@ -548,6 +556,14 @@ int
 ewmh_set_window_above(Window wnd)
 {
 	if (ewmh_modify_state(wnd, 1, g_net_wm_state_above_atom, 0) < 0)
+		return -1;
+	return 0;
+}
+
+int
+ewmh_clear_window_above(Window wnd)
+{
+	if (ewmh_modify_state(wnd, 0, g_net_wm_state_above_atom, 0) < 0)
 		return -1;
 	return 0;
 }

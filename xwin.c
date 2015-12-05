@@ -139,9 +139,9 @@ static RD_BOOL g_compatible_arch;
    binary format. If so, we can avoid an expensive translation.
    Note that this can be true when g_compatible_arch is false,
    e.g.:
-   
+
      RDP(LE) <-> host(BE) <-> X-Server(LE)
-     
+
    ('host' is the machine running rdesktop; the host simply memcpy's
     so its endianess doesn't matter)
  */
@@ -562,7 +562,7 @@ sw_configurenotify_p(Display * display, XEvent * xevent, XPointer arg)
 /* Wait for a ConfigureNotify, with a equal or larger serial, on the
    specified window. The event will be removed from the queue. We
    could use XMaskEvent(StructureNotifyMask), but we would then risk
-   throwing away crucial events like DestroyNotify. 
+   throwing away crucial events like DestroyNotify.
 
    After a ConfigureWindow, according to ICCCM section 4.1.5, we
    should recieve a ConfigureNotify, either a real or synthetic
@@ -1920,8 +1920,8 @@ ui_init(void)
 }
 
 
-/* 
-   Initialize connection specific data, such as session size. 
+/*
+   Initialize connection specific data, such as session size.
  */
 void
 ui_init_connection(void)
@@ -2342,6 +2342,19 @@ void
 xwin_grab_keyboard(void)
 {
 	if (!g_grabbed) {
+		/* There is some issue that makes the Metacity/Marco panels
+		 * appear above rdesktop even if _NET_WM_STATE_FULLSCREEN is
+		 * set.  Work around this by temporarily turning on
+		 * _NET_WM_STATE_ABOVE to force the window to the top whenever
+		 * the screen is grabbed. */
+		if (g_fullscreen)
+		{
+			ewmh_set_window_fullscreen(g_wnd);
+			XMoveWindow(g_display, g_wnd, 0, 0);
+			XRaiseWindow(g_display, g_wnd);
+			ewmh_set_window_above(g_wnd);
+		}
+
 		g_grabbed = True;
 		XGrabKeyboard(g_display, g_wnd, True,
 			      GrabModeAsync, GrabModeAsync, CurrentTime);
@@ -2356,6 +2369,9 @@ xwin_ungrab_keyboard(void)
 		g_grabbed = False;
 		XUngrabKeyboard(g_display, CurrentTime);
 		xwin_grab_help();
+
+		ewmh_clear_window_fullscreen(g_wnd);
+		ewmh_clear_window_above(g_wnd);
 	}
 }
 
